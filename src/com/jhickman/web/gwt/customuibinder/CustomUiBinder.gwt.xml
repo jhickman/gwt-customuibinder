@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE module PUBLIC "-//Google Inc.//DTD Google Web Toolkit 2.1.0//EN" "http://google-web-toolkit.googlecode.com/svn/tags/2.1.0/distro-source/core/src/gwt-module.dtd">
+<module>
+  <inherits name="com.google.gwt.uibinder.UiBinder" />
+
+  <define-configuration-property is-multi-valued="true" name="gwt.uibinder.elementparser" />
+  <define-configuration-property is-multi-valued="true" name="gwt.uibinder.customHandlerEvaluator" />
+  
+  <generate-with class="com.google.gwt.uibinder.rebind.CustomUiBinderGenerator">
+    <when-type-assignable class="com.google.gwt.uibinder.client.UiBinder"/>
+  </generate-with>
+</module>
