@@ -192,7 +192,7 @@ public class CustomUiBinderWriter extends UiBinderWriter {
         
         public void addCustomHandlerEvaluator(String propertyValue) throws UnableToCompleteException {
             try {
-                Class<? extends CustomHandlerEvaluator> clazz = Class.forName(propertyValue).asSubclass(CustomHandlerEvaluator.class);
+                Class<? extends CustomHandlerEvaluator> clazz = Class.forName(propertyValue, true, Thread.currentThread().getContextClassLoader()).asSubclass(CustomHandlerEvaluator.class);
                 addCustomHandlerEvaluator(clazz);
             } catch (Exception e) {
                 logger.die("Invalid CustomHanderEvaluator cannot find or wrong type: %s", propertyValue);
