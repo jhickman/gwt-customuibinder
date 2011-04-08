@@ -5,6 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.jhickman</groupId>
     <artifactId>gwt-customuibinder</artifactId>
+    <inceptionYear>2010</inceptionYear>
     <version>0.2</version>
     <packaging>jar</packaging>
 
@@ -32,6 +33,20 @@
                     <target>${javac.target}</target>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>com.mycila.maven-license-plugin</groupId>
+                <artifactId>maven-license-plugin</artifactId>
+                <version>1.8.0</version>
+                <configuration>
+                    <header>src/etc/header.txt</header>
+                    <failIfMissing>true</failIfMissing>
+                    <aggregate>true</aggregate>
+                    <properties>
+                        <owner>Justin Hickman</owner>
+                        <year>${project.inceptionYear}</year>
+                    </properties>
+                </configuration>
+            </plugin>            
         </plugins>
     </build>
  
@@ -49,4 +64,20 @@
             <scope>provided</scope>
         </dependency>
     </dependencies>
+    
+    
+  <pluginRepositories>
+    <pluginRepository>
+      <id>mc-release</id>
+      <name>Local Maven repository of releases</name>
+      <url>http://mc-repo.googlecode.com/svn/maven2/releases</url>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+    </pluginRepository>
+  </pluginRepositories>
+  
 </project>
