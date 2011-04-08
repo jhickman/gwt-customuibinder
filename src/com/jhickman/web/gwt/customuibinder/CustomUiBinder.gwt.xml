@@ -5,7 +5,8 @@
 
   <define-configuration-property is-multi-valued="true" name="gwt.uibinder.elementparser" />
   <define-configuration-property is-multi-valued="true" name="gwt.uibinder.customHandlerEvaluator" />
-  
+  <define-configuration-property is-multi-valued="true" name="gwt.uibinder.resourceparser" />
+
   <generate-with class="com.google.gwt.uibinder.rebind.CustomUiBinderGenerator">
     <when-type-assignable class="com.google.gwt.uibinder.client.UiBinder"/>
   </generate-with>

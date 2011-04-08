@@ -14,12 +14,19 @@
 
 package com.google.gwt.uibinder.rebind;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 
 import com.google.gwt.core.ext.BadPropertyValueException;
 import com.google.gwt.core.ext.ConfigurationProperty;
@@ -27,9 +34,16 @@ import com.google.gwt.core.ext.PropertyOracle;
 import com.google.gwt.core.ext.UnableToCompleteException;
 import com.google.gwt.core.ext.typeinfo.JClassType;
 import com.google.gwt.core.ext.typeinfo.TypeOracle;
+import com.google.gwt.resources.client.ClientBundle;
+import com.google.gwt.uibinder.attributeparsers.AttributeParsers;
+import com.google.gwt.uibinder.attributeparsers.BundleAttributeParsers;
+import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.rebind.messages.MessagesWriter;
+import com.google.gwt.uibinder.rebind.model.ImplicitClientBundle;
 import com.google.gwt.uibinder.rebind.model.OwnerClass;
 import com.jhickman.web.gwt.customuibinder.rebind.CustomHandlerEvaluator;
+import com.jhickman.web.gwt.customuibinder.rebind.Reflector;
+import com.jhickman.web.gwt.customuibinder.resourceparsers.ResourceParser;
 
 /**
  * Custom implementation of the {@link UiBinderWriter}.
@@ -45,14 +59,20 @@ public class CustomUiBinderWriter extends UiBinderWriter {
     
     private static final String GWT_UIBINDER_ELEMENTPARSER = "gwt.uibinder.elementparser";
     private static final String GWT_UIBINDER_CUSTOM_HANDLER_EVALUATOR = "gwt.uibinder.customHandlerEvaluator";
+	private static final String GWT_UIBINDER_RESOURCEPARSER = "gwt.uibinder.resourceparser";
+	
+	private static final Pattern GWT_PROPERTY_SPLIT_PATTERN = Pattern.compile("^(.*):()$");
     
     
     private Map<String, String> globalElementParsers;
     private Map<String, String> customElementParsers = new HashMap<String, String>();
+	private List<Class<? extends ResourceParser>> customResourceParsers = new ArrayList<Class<? extends ResourceParser>>();
     private final MortalLogger logger;
     
     private MultiHandlerEvaluator multiHandlerEvaluator;
     private final TypeOracle oracle;
+    private final Reflector<UiBinderWriter> reflector;
+
     
     public CustomUiBinderWriter(JClassType baseClass, String implClassName,
             String templatePath, TypeOracle oracle,
@@ -71,7 +91,7 @@ public class CustomUiBinderWriter extends UiBinderWriter {
                 uiBinderCtx);
         this.oracle = oracle;
         this.logger = logger;
-        
+        this.reflector = new Reflector<UiBinderWriter>(UiBinderWriter.class, this, logger);
 
         if ( ! isCustomParserCapable()) {
             logger.warn("Was unable to fetch the elementParsers object to register custom ElementParsers. No custom parsers will be run.");
@@ -81,6 +101,8 @@ public class CustomUiBinderWriter extends UiBinderWriter {
         findCustomParsers(propertyOracle, logger);
         
         findCustomHandlerEvaluators(propertyOracle);
+        
+        findCustomResourceParser(propertyOracle);
     }
 
 	protected void findCustomHandlerEvaluators(PropertyOracle propertyOracle)
@@ -109,6 +131,22 @@ public class CustomUiBinderWriter extends UiBinderWriter {
             }
         }
 	}
+	
+	protected void findCustomResourceParser(PropertyOracle propertyOracle) throws UnableToCompleteException {
+		ConfigurationProperty customResourceParserConfigurationProperty = getProperty(propertyOracle, GWT_UIBINDER_RESOURCEPARSER);
+		if (customResourceParserConfigurationProperty != null) {
+			for(String propertyValue : customResourceParserConfigurationProperty.getValues()) {
+				try {
+					Class<? extends ResourceParser> parser = Class.forName(propertyValue, true, Thread.currentThread().getContextClassLoader()).asSubclass(ResourceParser.class);
+					customResourceParsers.add(parser);
+				} catch (Exception e) {
+					logger.die("Registered custom resource parser cannot be found or not implementing ResourceParser: found %s", propertyValue);
+				}
+			}
+		}
+	}
+
+
     
     @Override
     public String parseElementToField(XMLElement elem) throws UnableToCompleteException {
@@ -159,6 +197,66 @@ public class CustomUiBinderWriter extends UiBinderWriter {
             return null;
         }
     }
+    
+    /*
+     * overridden to provide custom resource/field parsing
+     */
+    @Override
+    void parseDocument(Document doc, PrintWriter printWriter) throws UnableToCompleteException {
+    	JClassType baseClass = reflector.getField("baseClass");
+        JClassType uiBinderClass = getOracle().findType(UiBinder.class.getName());
+        if (!baseClass.isAssignableTo(uiBinderClass)) {
+          die(baseClass.getName() + " must implement UiBinder");
+        }
+
+        Element documentElement = doc.getDocumentElement();
+        
+        reflector.setField("gwtPrefix", documentElement.lookupPrefix(UiBinderGenerator.BINDER_URI));
+
+        AttributeParsers attributeParsers = reflector.getField("attributeParsers");
+		BundleAttributeParsers bundleParsers = reflector.getField("bundleParsers");
+		DesignTimeUtils designTime = reflector.getField("designTime");
+		
+		XMLElement elem = new XMLElementProviderImpl(attributeParsers,
+            bundleParsers, oracle, logger, designTime).get(documentElement);
+		
+		
+        Tokenator tokenator = reflector.getField("tokenator");
+        String rendered = tokenator.detokenate(parseDocumentElement(elem));
+		reflector.setField("rendered", rendered);
+        printWriter.print(rendered);
+    }
+    
+    /**
+     * Parse the document element and return the source of the Java class that
+     * will implement its UiBinder.
+     */
+    private String parseDocumentElement(XMLElement elem) throws UnableToCompleteException {
+    	FieldManager fieldManager = reflector.getField("fieldManager");
+		ImplicitClientBundle bundleClass = reflector.getField("bundleClass");
+		
+		
+		fieldManager .registerFieldOfGeneratedType(
+    			oracle.findType(ClientBundle.class.getName()),
+    			bundleClass .getPackageName(), bundleClass.getClassName(),
+    			bundleClass.getFieldName());
+    	// Allow GWT.create() to init the field, the default behavior
+    	
+    	MessagesWriter messages = reflector.getField("messages");
+		String rootField = new CustomUiBinderParser(this, messages, fieldManager, oracle, bundleClass, customResourceParsers).parse(elem);
+    	
+    	fieldManager.validate();
+    	
+    	StringWriter stringWriter = new StringWriter();
+    	IndentedWriter niceWriter = new IndentedWriter(
+    			new PrintWriter(stringWriter));
+    	
+    	reflector.callMethod("writeBinder", new Class[]{IndentedWriter.class, String.class}, niceWriter, rootField);
+    	
+    	reflector.callMethod("ensureAttachmentCleanedUp", new Class[0]);
+    	return stringWriter.toString();
+    }
+    
     
     
     private static final class MultiHandlerEvaluator extends HandlerEvaluator {

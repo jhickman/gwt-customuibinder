@@ -6,7 +6,7 @@
     <groupId>com.jhickman</groupId>
     <artifactId>gwt-customuibinder</artifactId>
     <inceptionYear>2010</inceptionYear>
-    <version>0.2</version>
+    <version>1.0</version>
     <packaging>jar</packaging>
 
     <properties>
