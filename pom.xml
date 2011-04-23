@@ -23,8 +23,17 @@
     </licenses>
 
     <scm>
+        <connection>scm:hg:https://gwt-customuibinder.googlecode.com/hg/</connection>
         <url>https://gwt-customuibinder.googlecode.com/hg/</url>
     </scm>
+
+    <developers>
+        <developer>
+            <id>hickman</id>
+            <name>Justin Hickman</name>
+            <email>justin@jhickman.com</email>
+        </developer>
+    </developers>
 
     <properties>
         <gwtVersion>2.2.0</gwtVersion>
