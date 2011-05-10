@@ -80,7 +80,7 @@ public class CustomUiBinderWriter extends UiBinderWriter {
             String templatePath, TypeOracle oracle,
             PropertyOracle propertyOracle, MortalLogger logger,
             FieldManager fieldManager, MessagesWriter messagesWriter,
-            DesignTimeUtils designTime, UiBinderContext uiBinderCtx)
+            DesignTimeUtils designTime, UiBinderContext uiBinderCtx, boolean useSafeHtmlTemplates)
             throws UnableToCompleteException {
         super(baseClass, 
                 implClassName, 
@@ -90,7 +90,8 @@ public class CustomUiBinderWriter extends UiBinderWriter {
                 fieldManager, 
                 messagesWriter, 
                 designTime, 
-                uiBinderCtx);
+                uiBinderCtx, 
+                useSafeHtmlTemplates);
         this.oracle = oracle;
         this.logger = logger;
         this.reflector = new Reflector<UiBinderWriter>(UiBinderWriter.class, this, logger);

@@ -16,6 +16,7 @@
 
 package com.google.gwt.uibinder.rebind;
 
+import com.google.gwt.core.ext.BadPropertyValueException;
 import com.google.gwt.core.ext.Generator;
 import com.google.gwt.core.ext.GeneratorContext;
 import com.google.gwt.core.ext.PropertyOracle;
@@ -35,6 +36,7 @@ import org.w3c.dom.Document;
 import org.xml.sax.SAXParseException;
 
 import java.io.PrintWriter;
+import java.util.List;
 
 /**
  * Generator for implementations of
@@ -54,6 +56,9 @@ public class CustomUiBinderGenerator extends Generator {
   private static final String TEMPLATE_SUFFIX = ".ui.xml";
 
   static final String BINDER_URI = "urn:ui:com.google.gwt.uibinder";
+  private static final String XSS_SAFE_CONFIG_PROPERTY = "UiBinder.useSafeHtmlTemplates";
+  
+  private static boolean xssWarningGiven = false;
 
   /**
    * Given a UiBinder interface, return the path to its ui.xml file, suitable
@@ -201,6 +206,35 @@ public class CustomUiBinderGenerator extends Generator {
           throws UnableToCompleteException {
       return new CustomUiBinderWriter(interfaceType, implName,
           templatePath, oracle, propertyOracle, logger, new FieldManager(oracle, logger),
-          messages, designTime, uiBinderCtx);
+          messages, designTime, uiBinderCtx, useSafeHtmlTemplates(logger, propertyOracle));
+  }
+  
+
+  private Boolean useSafeHtmlTemplates(MortalLogger logger, PropertyOracle propertyOracle) {
+    List<String> values;
+    try {
+      values = propertyOracle.getConfigurationProperty(XSS_SAFE_CONFIG_PROPERTY).getValues();
+    } catch (BadPropertyValueException e) {
+      logger.warn("No value found for configuration property %s.", XSS_SAFE_CONFIG_PROPERTY);
+      return true;
+    }
+
+    String value = values.get(0);
+    if (!value.equals(Boolean.FALSE.toString()) && !value.equals(Boolean.TRUE.toString())) {
+      logger.warn("Unparseable value \"%s\" found for configuration property %s", value,
+          XSS_SAFE_CONFIG_PROPERTY);
+      return true;
+    }
+
+    Boolean rtn = Boolean.valueOf(value);
+
+    if (!rtn && !xssWarningGiven) {
+      logger.warn("Configuration property %s is false! UiBinder SafeHtml integration is off, "
+          + "leaving your users more vulnerable to cross-site scripting attacks. This "
+          + "property will default to true in future releases of GWT.",
+          XSS_SAFE_CONFIG_PROPERTY);
+      xssWarningGiven = true;
+    }
+    return rtn;
   }
 }
