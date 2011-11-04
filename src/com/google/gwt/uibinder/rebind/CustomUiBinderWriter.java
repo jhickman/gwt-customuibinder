@@ -74,28 +74,23 @@ public class CustomUiBinderWriter extends UiBinderWriter {
     private MultiHandlerEvaluator multiHandlerEvaluator;
     private final TypeOracle oracle;
     private final Reflector<UiBinderWriter> reflector;
+	private final String binderUri;
 
     
     public CustomUiBinderWriter(JClassType baseClass, String implClassName,
-            String templatePath, TypeOracle oracle,
-            PropertyOracle propertyOracle, MortalLogger logger,
-            FieldManager fieldManager, MessagesWriter messagesWriter,
-            DesignTimeUtils designTime, UiBinderContext uiBinderCtx, boolean useSafeHtmlTemplates)
-            throws UnableToCompleteException {
-        super(baseClass, 
-                implClassName, 
-                templatePath, 
-                oracle, 
-                logger, 
-                fieldManager, 
-                messagesWriter, 
-                designTime, 
-                uiBinderCtx, 
-                useSafeHtmlTemplates);
-        this.oracle = oracle;
-        this.logger = logger;
-        this.reflector = new Reflector<UiBinderWriter>(UiBinderWriter.class, this, logger);
-
+			String templatePath, TypeOracle oracle, MortalLogger logger,
+			FieldManager fieldManager, MessagesWriter messagesWriter,
+			DesignTimeUtils designTime, UiBinderContext uiBinderCtx,
+			boolean useSafeHtmlTemplates, boolean useLazyWidgetBuilders,
+			String binderUri, PropertyOracle propertyOracle) throws UnableToCompleteException {
+		super(baseClass, implClassName, templatePath, oracle, logger, fieldManager,
+				messagesWriter, designTime, uiBinderCtx, useSafeHtmlTemplates,
+				useLazyWidgetBuilders, binderUri);
+		this.oracle = oracle;
+		this.logger = logger;
+		this.reflector = new Reflector<UiBinderWriter>(UiBinderWriter.class, this, logger);
+		this.binderUri = binderUri;
+		
         if ( ! isCustomParserCapable()) {
             logger.warn("Was unable to fetch the elementParsers object to register custom ElementParsers. No custom parsers will be run.");
             return;
@@ -170,7 +165,7 @@ public class CustomUiBinderWriter extends UiBinderWriter {
             Field handlerEvaluatorField = UiBinderWriter.class.getDeclaredField("handlerEvaluator");
             handlerEvaluatorField.setAccessible(true);
             HandlerEvaluator handlerEvaluator = (HandlerEvaluator) handlerEvaluatorField.get(this);
-            multiHandlerEvaluator = new MultiHandlerEvaluator(handlerEvaluator, logger, oracle);
+            multiHandlerEvaluator = new MultiHandlerEvaluator(handlerEvaluator, logger, oracle, useLazyWidgetBuilders());
             handlerEvaluatorField.set(this, multiHandlerEvaluator);
             
             return true;
@@ -214,7 +209,7 @@ public class CustomUiBinderWriter extends UiBinderWriter {
 
         Element documentElement = doc.getDocumentElement();
         
-        reflector.setField("gwtPrefix", documentElement.lookupPrefix(UiBinderGenerator.BINDER_URI));
+        reflector.setField("gwtPrefix", documentElement.lookupPrefix(binderUri));
 
         AttributeParsers attributeParsers = reflector.getField("attributeParsers");
 		BundleAttributeParsers bundleParsers = reflector.getField("bundleParsers");
@@ -246,7 +241,7 @@ public class CustomUiBinderWriter extends UiBinderWriter {
     	// Allow GWT.create() to init the field, the default behavior
     	
     	MessagesWriter messages = reflector.getField("messages");
-		String rootField = new CustomUiBinderParser(this, messages, fieldManager, oracle, bundleClass, customResourceParsers).parse(elem);
+		String rootField = new CustomUiBinderParser(this, messages, fieldManager, oracle, bundleClass, binderUri, customResourceParsers).parse(elem);
     	
     	fieldManager.validate();
     	
@@ -269,8 +264,8 @@ public class CustomUiBinderWriter extends UiBinderWriter {
         private final MortalLogger logger;
         private final TypeOracle oracle;
 
-        public MultiHandlerEvaluator(final HandlerEvaluator existingHandlerEvaluator, MortalLogger logger, TypeOracle oracle) throws Exception {
-            super(null, null, oracle);
+        public MultiHandlerEvaluator(final HandlerEvaluator existingHandlerEvaluator, MortalLogger logger, TypeOracle oracle, boolean useLazyWidgetBuilders) throws Exception {
+            super(null, null, oracle, useLazyWidgetBuilders);
             
             this.logger = logger;
             this.oracle = oracle;

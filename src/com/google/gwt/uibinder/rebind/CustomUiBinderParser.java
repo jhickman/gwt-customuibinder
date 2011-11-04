@@ -39,6 +39,7 @@ public class CustomUiBinderParser extends UiBinderParser {
 	private final UiBinderWriter writer;
 	private final FieldManager fieldManager;
 	private final List<Class<? extends ResourceParser>> customResourceParsers;
+	private final String binderUri;
 
 	/**
 	 * @param writer
@@ -50,12 +51,12 @@ public class CustomUiBinderParser extends UiBinderParser {
 	 */
 	public CustomUiBinderParser(UiBinderWriter writer,
 			MessagesWriter messagesWriter, FieldManager fieldManager,
-			TypeOracle oracle, ImplicitClientBundle bundleClass, List<Class<? extends ResourceParser>> customResourceParsers) {
+			TypeOracle oracle, ImplicitClientBundle bundleClass, String binderUri, List<Class<? extends ResourceParser>> customResourceParsers) {
 		
-		
-		super(writer, messagesWriter, fieldManager, oracle, bundleClass);
+		super(writer, messagesWriter, fieldManager, oracle, bundleClass, binderUri);
 		this.writer = writer;
 		this.fieldManager = fieldManager;
+		this.binderUri = binderUri;
 		this.customResourceParsers = customResourceParsers;
 		
 		this.reflector = new Reflector<UiBinderParser>(UiBinderParser.class, this, writer.getLogger());
@@ -68,7 +69,7 @@ public class CustomUiBinderParser extends UiBinderParser {
 			writer.die(elem, "Bad prefix on <%s:%s>? The root element must be in "
 					+ "xml namespace \"%s\" (usually with prefix \"ui:\"), "
 					+ "but this has prefix \"%s\"", elem.getPrefix(),
-					elem.getLocalName(), UiBinderGenerator.BINDER_URI, elem.getPrefix());
+					elem.getLocalName(), binderUri, elem.getPrefix());
 		}
 		
 		if (!TAG.equals(elem.getLocalName())) {

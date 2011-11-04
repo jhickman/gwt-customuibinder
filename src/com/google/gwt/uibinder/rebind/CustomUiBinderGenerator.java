@@ -1,27 +1,28 @@
-/**
- * Copyright 2010 Justin Hickman
+/*
+ * Copyright 2008 Google Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
  */
-
 package com.google.gwt.uibinder.rebind;
 
+import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.ext.BadPropertyValueException;
 import com.google.gwt.core.ext.Generator;
 import com.google.gwt.core.ext.GeneratorContext;
 import com.google.gwt.core.ext.PropertyOracle;
 import com.google.gwt.core.ext.TreeLogger;
 import com.google.gwt.core.ext.UnableToCompleteException;
+import com.google.gwt.core.ext.TreeLogger.Type;
 import com.google.gwt.core.ext.typeinfo.JClassType;
 import com.google.gwt.core.ext.typeinfo.NotFoundException;
 import com.google.gwt.core.ext.typeinfo.TypeOracle;
@@ -41,24 +42,17 @@ import java.util.List;
 /**
  * Generator for implementations of
  * {@link com.google.gwt.uibinder.client.UiBinder}.
- * 
- * 
- * For the most part, this class was copied from GWT 2.1.0 
- * with 1 modification: pull the creation of the UiBinderWriter
- * out as a separate method, and using CustomUiBinderWriter rather
- * than official GWT one.
- * 
- * The only reason this class stayed in the com.google.gwt package
- * space is due to the package private classes, methods, etc.
  */
 public class CustomUiBinderGenerator extends Generator {
 
+  private static final String BINDER_URI = "urn:ui:com.google.gwt.uibinder";
+
   private static final String TEMPLATE_SUFFIX = ".ui.xml";
 
-  static final String BINDER_URI = "urn:ui:com.google.gwt.uibinder";
   private static final String XSS_SAFE_CONFIG_PROPERTY = "UiBinder.useSafeHtmlTemplates";
+  private static final String LAZY_WIDGET_BUILDERS_PROPERTY = "UiBinder.useLazyWidgetBuilders";
   
-  private static boolean xssWarningGiven = false;
+  private static boolean gaveSafeHtmlWarning;
 
   /**
    * Given a UiBinder interface, return the path to its ui.xml file, suitable
@@ -74,7 +68,7 @@ public class CustomUiBinderGenerator extends Generator {
       if (interfaceType.getEnclosingType() != null) {
         interfaceType = interfaceType.getEnclosingType();
       }
-      return slashify(interfaceType.getQualifiedSourceName()) + TEMPLATE_SUFFIX;
+      return slashify(interfaceType.getQualifiedBinaryName()) + TEMPLATE_SUFFIX;
     } else {
       templateName = annotation.value();
       if (!templateName.endsWith(TEMPLATE_SUFFIX)) {
@@ -98,7 +92,7 @@ public class CustomUiBinderGenerator extends Generator {
   }
 
   private static String slashify(String s) {
-    return s.replace(".", "/");
+    return s.replace(".", "/").replace("$", ".");
   }
 
   private final UiBinderContext uiBinderCtx = new UiBinderContext();
@@ -108,7 +102,7 @@ public class CustomUiBinderGenerator extends Generator {
       String fqInterfaceName) throws UnableToCompleteException {
     TypeOracle oracle = genCtx.getTypeOracle();
     ResourceOracle resourceOracle = genCtx.getResourcesOracle();
-    PropertyOracle propertyOracle = genCtx.getPropertyOracle();
+
     JClassType interfaceType;
     try {
       interfaceType = oracle.getType(fqInterfaceName);
@@ -133,22 +127,48 @@ public class CustomUiBinderGenerator extends Generator {
 
     if (printWriter != null) {
       generateOnce(interfaceType, implName, printWriter, logger, oracle,
-          resourceOracle, propertyOracle, writers, designTime);
+          resourceOracle, genCtx.getPropertyOracle(), writers, designTime);
     }
     return packageName + "." + implName;
   }
 
+  private Boolean extractConfigProperty(MortalLogger logger,
+      PropertyOracle propertyOracle, String configProperty, boolean defaultValue) {
+    List<String> values;
+    try {
+      values = propertyOracle.getConfigurationProperty(configProperty).getValues();
+    } catch (BadPropertyValueException e) {
+      logger.warn("No value found for configuration property %s.", configProperty);
+      return defaultValue;
+    }
+
+    String value = values.get(0);
+    if (!value.equals(Boolean.FALSE.toString()) && !value.equals(Boolean.TRUE.toString())) {
+      logger.warn("Unparseable value \"%s\" found for configuration property %s", value,
+          configProperty);
+      return defaultValue;
+    }
+
+    return Boolean.valueOf(value);
+  }
+
   private void generateOnce(JClassType interfaceType, String implName,
       PrintWriter binderPrintWriter, TreeLogger treeLogger, TypeOracle oracle,
-      ResourceOracle resourceOracle, PropertyOracle propertyOracle, PrintWriterManager writerManager,
-      DesignTimeUtils designTime) throws UnableToCompleteException {
+      ResourceOracle resourceOracle, PropertyOracle propertyOracle,
+      PrintWriterManager writerManager,  DesignTimeUtils designTime)
+  throws UnableToCompleteException {
 
     MortalLogger logger = new MortalLogger(treeLogger);
     String templatePath = deduceTemplateFile(logger, interfaceType);
-    MessagesWriter messages = new MessagesWriter(BINDER_URI, logger,
+    MessagesWriter messages = new MessagesWriter(oracle, BINDER_URI, logger,
         templatePath, interfaceType.getPackage().getName(), implName);
 
-    UiBinderWriter uiBinderWriter = newUiBinderWriter(interfaceType, implName, oracle, propertyOracle, designTime, logger, templatePath, messages);
+    boolean useLazyWidgetBuilders = useLazyWidgetBuilders(logger, propertyOracle);
+    FieldManager fieldManager = new FieldManager(oracle, logger, useLazyWidgetBuilders);
+
+    UiBinderWriter uiBinderWriter = new CustomUiBinderWriter(interfaceType, implName,
+        templatePath, oracle, logger, fieldManager, messages, designTime, uiBinderCtx,
+        useSafeHtmlTemplates(logger, propertyOracle), useLazyWidgetBuilders, BINDER_URI, propertyOracle);
 
     Document doc = getW3cDoc(logger, designTime, resourceOracle, templatePath);
     designTime.rememberPathForElements(doc);
@@ -189,51 +209,20 @@ public class CustomUiBinderGenerator extends Generator {
     }
     return doc;
   }
-  
-  /**
-   * @param interfaceType
-   * @param implName
-   * @param oracle
- * @param propertyOracle 
-   * @param designTime
-   * @param logger
-   * @param templatePath
-   * @param messages
-   * @return
-   * @throws UnableToCompleteException
-   */
-  protected UiBinderWriter newUiBinderWriter(JClassType interfaceType, String implName, TypeOracle oracle, PropertyOracle propertyOracle, DesignTimeUtils designTime, MortalLogger logger, String templatePath, MessagesWriter messages)
-          throws UnableToCompleteException {
-      return new CustomUiBinderWriter(interfaceType, implName,
-          templatePath, oracle, propertyOracle, logger, new FieldManager(oracle, logger),
-          messages, designTime, uiBinderCtx, useSafeHtmlTemplates(logger, propertyOracle));
+
+  private Boolean useLazyWidgetBuilders(MortalLogger logger, PropertyOracle propertyOracle) {
+    return extractConfigProperty(logger, propertyOracle, LAZY_WIDGET_BUILDERS_PROPERTY, false);
   }
-  
 
   private Boolean useSafeHtmlTemplates(MortalLogger logger, PropertyOracle propertyOracle) {
-    List<String> values;
-    try {
-      values = propertyOracle.getConfigurationProperty(XSS_SAFE_CONFIG_PROPERTY).getValues();
-    } catch (BadPropertyValueException e) {
-      logger.warn("No value found for configuration property %s.", XSS_SAFE_CONFIG_PROPERTY);
-      return true;
-    }
+    Boolean rtn = extractConfigProperty(
+        logger, propertyOracle, XSS_SAFE_CONFIG_PROPERTY, true);
 
-    String value = values.get(0);
-    if (!value.equals(Boolean.FALSE.toString()) && !value.equals(Boolean.TRUE.toString())) {
-      logger.warn("Unparseable value \"%s\" found for configuration property %s", value,
-          XSS_SAFE_CONFIG_PROPERTY);
-      return true;
-    }
-
-    Boolean rtn = Boolean.valueOf(value);
-
-    if (!rtn && !xssWarningGiven) {
+    if (!gaveSafeHtmlWarning && !rtn) {
       logger.warn("Configuration property %s is false! UiBinder SafeHtml integration is off, "
-          + "leaving your users more vulnerable to cross-site scripting attacks. This "
-          + "property will default to true in future releases of GWT.",
+          + "leaving your users more vulnerable to cross-site scripting attacks.",
           XSS_SAFE_CONFIG_PROPERTY);
-      xssWarningGiven = true;
+      gaveSafeHtmlWarning = true;
     }
     return rtn;
   }

@@ -4,7 +4,7 @@
     <groupId>com.jhickman</groupId>
     <artifactId>gwt-customuibinder</artifactId>
     <inceptionYear>2010</inceptionYear>
-    <version>1.1.1-SNAPSHOT</version>
+    <version>1.2.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>GWT Custom UiBinder</name>
@@ -40,7 +40,7 @@
     </parent>
 
     <properties>
-        <gwtVersion>2.3.0</gwtVersion>
+        <gwtVersion>2.4.0</gwtVersion>
         <javac.source>1.5</javac.source>
         <javac.target>1.5</javac.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -128,13 +128,11 @@
             <groupId>com.google.gwt</groupId>
             <artifactId>gwt-dev</artifactId>
             <version>${gwtVersion}</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.google.gwt</groupId>
             <artifactId>gwt-user</artifactId>
             <version>${gwtVersion}</version>
-            <scope>provided</scope>
         </dependency>
     </dependencies>
   
